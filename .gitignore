@@ -1,0 +1,14 @@
+# Describe file and dir dont want to include in git
+
+# npm
+node_modules/
+
+# Parcel
+/.cache/
+/dist/
+
+#typescript
+/.ts-cache/
+
+
+.env/
