@@ -8,15 +8,15 @@ export type ReqAndRes = {
       id: ColumnID
       title?: string
     }[]
-  },
-  
+  }
+
   'GET /v1/cards': {
     req: null
     res: {
       id: CardID
       text?: string
     }[]
-  },
+  }
   'POST /v1/cards': {
     req: {
       id: CardID
@@ -38,7 +38,7 @@ export type ReqAndRes = {
     res: Record<string, CardID | ColumnID>
   }
   'PATCH /v1/cardsOrder': {
-    req: Record<string, string>
+    req: Record<string, CardID | ColumnID>
     res: Record<string, CardID | ColumnID>
   }
 }
@@ -92,7 +92,7 @@ export async function api<K extends keyof ReqAndRes>(
             text,
           )
         }),
-        )
+  )
 }
 
 export class APIError extends Error {

@@ -24,10 +24,10 @@ export function Column({
     id: CardID
     text?: string
   }[]
-  onCardDragStart?(id: CardID): void
+  onCardDragStart?(id: string): void
   //???
-  onCardDrop?(entered: CardID | null): void
-  onCardDeleteClick?(id: CardID): void
+  onCardDrop?(entered: string | null): void
+  onCardDeleteClick?(id: string): void
   text?: string
   onTextChange?(value: string): void
   onTextConfirm?(): void
