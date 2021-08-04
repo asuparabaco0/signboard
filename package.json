@@ -4,7 +4,8 @@
     "start-api": "json-server --watch ./api/db.json --middlewares ./api/middlewares",
     "build": "parcel build ./src/index.html",
     "tsc": "tsc",
-    "format": "prettier --write \"./src/**/*.{ts,tsx}\""
+    "format": "prettier --write \"./src/**/*.{ts,tsx}\"",
+    "lint": "eslint \"./src/**/*.{ts,tsx}\""
   },
   "dependencies": {
     "immer": "^9.0.5",
@@ -16,6 +17,11 @@
     "@types/react": "^17.0.15",
     "@types/react-dom": "^17.0.9",
     "@types/styled-components": "^5.1.11",
+    "@typescript-eslint/eslint-plugin": "^4.28.5",
+    "@typescript-eslint/parser": "^4.28.5",
+    "eslint": "^7.32.0",
+    "eslint-plugin-react": "^7.24.0",
+    "eslint-plugin-react-hooks": "^4.2.0",
     "json-server": "^0.16.3",
     "parcel-bundler": "^1.12.5",
     "prettier": "^2.3.2",

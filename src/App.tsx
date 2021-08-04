@@ -4,62 +4,62 @@ import styled from 'styled-components'
 （styled.div など）以外もスタイリングできる
 スタイルの情報はclassName属性として渡される*/
 import produce from 'immer'
-import { randomID, sortBy } from './util'
-import { api } from './api'
+import { randomID, sortBy, reorderPatch } from './util'
+import { api, ColumnID, CardID } from './api'
 import { Header as _Header } from './Header'
 import { Column } from './Column'
 import { DeleteDialog } from './DeleteDialog'
 import { Overlay as _Overlay } from './Overlay'
 
 type State = {
-  columns?:{
-  id: string
-  title?: string
-  text?: string
-  cards?: {
-    id: string
+  columns?: {
+    id: ColumnID
+    title?: string
     text?: string
+    cards?: {
+      id: CardID
+      text?: string
+    }[]
   }[]
-}[]
-  cardsOrder: Record<string,string>
+  cardsOrder: Record<string, CardID | ColumnID>
 }
 
 export function App() {
   //hold in app and hand over to Column and Header
   const [filterValue, setFilterValue] = useState('')
-  const [{columns}, setData] = useState<State>({ cardsOrder: {} })
+  const [{ columns, cardsOrder }, setData] = useState<State>({ cardsOrder: {} })
+  //useEffect内の非同期処理は変数にまとめたほうがいい
+  useEffect(() => {
+    const aaaa = async () => {
+      const columns = await api('GET /v1/columns', null)
 
-  // useEffect(() => {
-  //   const aaaa = async () => {
-  //     const columns = await api('GET /v1/columns', null)
+      setData(
+        produce((draft: State) => {
+          draft.columns = columns
+        }),
+      )
 
-  //     setData(
-  //       produce((draft: State) => {
-  //         draft.columns = columns
-  //       }),
-  //     )
-      
-  //     const [unorderedCards, cardsOrder] = await Promise.all([
-  //       api('GET /v1/cards', null),
-  //       api('GET /v1/cardsOrder', null),
-  //     ])
-      
-  //     setData(
-  //       produce((draft: State) => {
-  //         draft.cardsOrder = cardsOrder
-  //         draft.columns?.forEach(column => {
-  //           column.cards = sortBy(unorderedCards, cardsOrder, column.id)
-  //         })
-  //       }),
-  //     )
-  //   }
-  //   aaaa()
-  // }, [])
-  const [draggingCardID, setDraggingCardID] = useState<string | undefined>(
+      const [unorderedCards, cardsOrder] = await Promise.all([
+        api('GET /v1/cards', null),
+        api('GET /v1/cardsOrder', null),
+      ])
+
+      setData(
+        produce((draft: State) => {
+          draft.cardsOrder = cardsOrder
+          draft.columns?.forEach(column => {
+            column.cards = sortBy(unorderedCards, cardsOrder, column.id)
+          })
+        }),
+      )
+    }
+    aaaa()
+  }, [])
+  const [draggingCardID, setDraggingCardID] = useState<CardID | undefined>(
     undefined,
   )
 
-  const dropCardTo = (toID: string) => {
+  const dropCardTo = (toID: CardID | ColumnID) => {
     const fromID = draggingCardID
     if (!fromID) return
     console.log(draggingCardID)
@@ -68,38 +68,26 @@ export function App() {
 
     if (fromID === toID) return
 
-    type Columns = typeof columns
+    const patch = reorderPatch(cardsOrder, fromID, toID)
+
+    // type Columns = typeof columns
 
     setData(
       produce((draft: State) => {
-        const card = draft.columns
-          ?.flatMap(col => col.cards ?? [])
-          .find(c => c.id === fromID)
-        if (!card) return
-
-        const fromColumn = draft.columns?.find(col =>
-          //return boolean
-          col.cards?.some(c => c.id === fromID),
-        )
-        if (!fromColumn?.cards) return
-
-        fromColumn.cards = fromColumn.cards.filter(c => c.id !== fromID)
-
-        const toColumn = draft.columns?.find(
-          col => col.id === toID || col.cards?.some(c => c.id === toID),
-        )
-        if (!toColumn?.cards) return
-
-        let index = toColumn.cards.findIndex(c => c.id === toID)
-        if (index < 0) {
-          index = toColumn.cards.length
+        draft.cardsOrder = {
+          ...draft.cardsOrder,
+          ...patch,
         }
-        toColumn.cards.splice(index, 0, card)
+        const unorderedCards = draft.columns?.flatMap(c => c.cards ?? []) ?? []
+        draft.columns?.forEach(column => {
+          column.cards = sortBy(unorderedCards, draft.cardsOrder, column.id)
+        })
       }),
     )
-    //hold state and receive deleting imfo from card
+    api('PATCH /v1/cardsOrder', patch)
+    //hold state and receive deleting info from card????
   }
-  const setText = (columnID: string, value: string) => {
+  const setText = (columnID: ColumnID, value: string) => {
     setData(
       produce((draft: State) => {
         const column = draft.columns?.find(c => c.id === columnID)
@@ -109,23 +97,37 @@ export function App() {
       }),
     )
   }
-  const addCard = (columnID: string) => {
+  const addCard = (columnID: ColumnID) => {
     const column = columns?.find(c => c.id === columnID)
     if (!column) return
 
     const text = column.text
-    const cardID = randomID()
+    const cardID = randomID() as CardID
+    console.log(cardID)
+
+    const patch = reorderPatch(cardsOrder, cardID, cardsOrder[columnID])
 
     setData(
       produce((draft: State) => {
+        /**
+         * draft.columns?.find(...) で ID に該当する Column が見つからないときに加え、
+         * column.cards が undefined のときも以降の処理をスキップしている。
+         * column.cards が undefined のときは、API から Card 一覧を取得していない
+         * 段階なので、並び替え処理をする意味がない。
+         */
         const column = draft.columns?.find(c => c.id === columnID)
-        if (!column) return
+        if (!column?.cards) return
         //unshift() return new arrangement's length with adding new element more than one in the first position
-        column.cards?.unshift({
+        //if there is none skip process
+        column.cards.unshift({
           id: cardID,
           text: column.text,
         })
         column.text = ''
+        draft.cardsOrder = {
+          ...draft.cardsOrder,
+          ...patch,
+        }
       }),
     )
     //setDataの引数は冪等な関数にしておきたい
@@ -134,8 +136,9 @@ export function App() {
       id: cardID,
       text,
     })
+    api('PATCH /v1/cardsOrder', patch)
   }
-  const [deletingCardID, setDeletingCardID] = useState< string | undefined >(
+  const [deletingCardID, setDeletingCardID] = useState<CardID | undefined>(
     undefined,
   )
   const deleteCard = () => {
@@ -144,17 +147,27 @@ export function App() {
     if (!cardID) return
 
     setDeletingCardID(undefined)
-    console.log(deletingCardID)
+
+    const patch = reorderPatch(cardsOrder, cardID)
     // type Columns = typeof columns
     setData(
       produce((draft: State) => {
-        const column = draft.columns?.find(col => col.cards?.some(c => c.id === cardID))
-        if (!column) return
+        const column = draft.columns?.find(col =>
+          col.cards?.some(c => c.id === cardID),
+        )
+        if (!column?.cards) return
 
-        column.cards = column.cards?.filter(c => c.id !== cardID)
+        column.cards = column.cards.filter(c => c.id !== cardID)
+        draft.cardsOrder = {
+          ...draft.cardsOrder,
+          ...patch,
+        }
       }),
     )
-    console.log('iii')
+    api('DELETE /v1/cards', {
+      id: cardID,
+    })
+    api('PATCH /v1/cardsOrder', patch)
   }
   return (
     <Container>
@@ -162,23 +175,23 @@ export function App() {
       <MainArea>
         <HorizontalScroll>
           {!columns ? (
-            <Loading /> 
-            ) : (
-              columns.map(({ id: columnID, title, cards, text }) => (
-            <Column
-              key={columnID}
-              title={title}
-              filterValue={filterValue}
-              cards={cards}
-              onCardDragStart={cardID => setDraggingCardID(cardID)}
-              onCardDrop={entered => dropCardTo(entered ?? columnID)}
-              onCardDeleteClick={cardID => setDeletingCardID(cardID)}
-              text={text}
-              onTextChange={value => setText(columnID, value)}
-              onTextConfirm={() => addCard(columnID)}
-            />
-          ))
-        )}
+            <Loading />
+          ) : (
+            columns.map(({ id: columnID, title, cards, text }) => (
+              <Column
+                key={columnID}
+                title={title}
+                filterValue={filterValue}
+                cards={cards}
+                onCardDragStart={cardID => setDraggingCardID(cardID)}
+                onCardDrop={entered => dropCardTo(entered ?? columnID)}
+                onCardDeleteClick={cardID => setDeletingCardID(cardID)}
+                text={text}
+                onTextChange={value => setText(columnID, value)}
+                onTextConfirm={() => addCard(columnID)}
+              />
+            ))
+          )}
         </HorizontalScroll>
       </MainArea>
       {deletingCardID && (

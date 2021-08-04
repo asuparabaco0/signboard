@@ -3,6 +3,8 @@
   "recommendations": [
   // use Prettier as formatter
   "esbenp.prettier-vscode",
+  // ESLint の警告をリアルタイムで表示する
+  "dbaeumer.vscode-eslint",
   //validate syntax highlighting of styled-components
   "jpoissonnier.vscode-styled-components"
   ]
